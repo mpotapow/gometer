@@ -5,6 +5,8 @@ import (
 	"os"
 )
 
+var instance *Application
+
 // Application ...
 type Application struct {
 	Storage
@@ -15,15 +17,19 @@ type Application struct {
 // GetApplicationInstance ...
 func GetApplicationInstance() contracts.Application {
 
-	dir, _ := os.Getwd()
+	if instance == nil {
+		dir, _ := os.Getwd()
 
-	return &Application{
-		Storage: Storage{
-			values: map[string]interface{}{},
-		},
-		rootPath:  dir,
-		providers: []contracts.ServiceProvider{},
+		instance = &Application{
+			Storage: Storage{
+				values: map[string]interface{}{},
+			},
+			rootPath:  dir,
+			providers: []contracts.ServiceProvider{},
+		}
 	}
+
+	return instance
 }
 
 // GetRootPath ...

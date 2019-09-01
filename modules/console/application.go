@@ -19,7 +19,9 @@ type Application struct {
 func GetApplicationInstance() contracts.Application {
 	return &Application{
 		formatter: GetFormatterInstance(),
-		commands:  make(map[string]contracts.Command),
+		commands: map[string]contracts.Command{
+			"list": GetCommandInstance("list", "Lists commands"),
+		},
 	}
 }
 
@@ -60,7 +62,7 @@ func (a *Application) Run(args []string) {
 		}
 
 		a.setOptions(c, options)
-		c.Handle()
+		c.Handle(a.formatter)
 	}
 }
 

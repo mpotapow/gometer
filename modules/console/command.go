@@ -1,6 +1,9 @@
 package console
 
-import "gometer/modules/console/contracts"
+import (
+	"errors"
+	"gometer/modules/console/contracts"
+)
 
 // Option ...
 type Option struct {
@@ -30,6 +33,11 @@ func (o *Option) SetValue(val interface{}) {
 	o.value = val
 }
 
+// GetValue ...
+func (o *Option) GetValue() interface{} {
+	return o.value
+}
+
 // Argument ...
 type Argument struct {
 	Name        string
@@ -50,6 +58,11 @@ func (a *Argument) GetDescription() string {
 // SetValue ...
 func (a *Argument) SetValue(val string) {
 	a.value = val
+}
+
+// GetValue ...
+func (a *Argument) GetValue() string {
+	return a.value
 }
 
 // Command ...
@@ -103,6 +116,24 @@ func (c *Command) GetOptions() map[string]contracts.Option {
 	return c.Options
 }
 
+// GetOption ...
+func (c *Command) GetOption(name string) (interface{}, error) {
+	if option, ok := c.Options[name]; ok {
+		return option.GetValue(), nil
+	}
+	return nil, errors.New("Option not found")
+}
+
+// GetArgument ...
+func (c *Command) GetArgument(name string) (interface{}, error) {
+	for _, arg := range c.Arguments {
+		if arg.GetName() == name {
+			return arg.GetValue(), nil
+		}
+	}
+	return nil, errors.New("Argument not found")
+}
+
 // Handle ...
-func (c *Command) Handle() {
+func (c *Command) Handle(f contracts.Formatter) {
 }

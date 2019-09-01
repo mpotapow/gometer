@@ -4,6 +4,7 @@ package contracts
 type Option interface {
 	GetName() string
 	IsFillable() bool
+	GetValue() interface{}
 	GetDescription() string
 	SetValue(val interface{})
 }
@@ -11,6 +12,7 @@ type Option interface {
 // Argument ...
 type Argument interface {
 	GetName() string
+	GetValue() string
 	SetValue(val string)
 	GetDescription() string
 }
@@ -23,5 +25,7 @@ type Command interface {
 	AddArgument(argument Argument)
 	GetArguments() []Argument
 	GetOptions() map[string]Option
-	Handle()
+	GetOption(name string) (interface{}, error)
+	GetArgument(name string) (interface{}, error)
+	Handle(f Formatter)
 }
