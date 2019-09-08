@@ -1,0 +1,9 @@
+{
+    "driver": "memory",
+    "lifetime": 3600,
+    "cookie": "sessid",
+    "domain": "",
+    "path": "/",
+    "secure": false,
+    "http_only": true
+}

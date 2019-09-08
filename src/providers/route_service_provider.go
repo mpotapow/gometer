@@ -2,8 +2,9 @@ package providers
 
 import (
 	"gometer/modules/core/contracts"
-	httpModule "gometer/modules/http"
+	httpContracts "gometer/modules/http/contracts"
 	viewContracts "gometer/modules/view/contracts"
+	"gometer/src/middleware"
 	"net/http"
 )
 
@@ -21,10 +22,12 @@ func GetRouteServiceProvider() contracts.ServiceProvider {
 func (p *RouteServiceProvider) Register(a contracts.Application) {
 
 	routeInst, _ := a.Get("router")
-	router := routeInst.(*httpModule.Router)
+	router := routeInst.(httpContracts.Router)
 
 	viewInst, _ := a.Get("view")
 	view := viewInst.(viewContracts.View)
+
+	router.AddMiddleware(middleware.StartSession)
 
 	router.Get("/", func(w http.ResponseWriter, r *http.Request) {
 

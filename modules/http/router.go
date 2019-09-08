@@ -2,8 +2,10 @@ package http
 
 import (
 	"fmt"
+	"gometer/modules/http/contracts"
 	"net/http"
 	"regexp"
+	"strings"
 )
 
 // Router ...
@@ -13,11 +15,17 @@ type Router struct {
 	escapeRegExp  *regexp.Regexp
 	optionalParam *regexp.Regexp
 
-	partition map[string]map[string]func(w http.ResponseWriter, r *http.Request)
+	namespace  string
+	balancer   *balancer
+	middleware []func(http.Handler) http.Handler
+}
+
+type balancer struct {
+	partition map[string]map[string]http.Handler
 }
 
 // GetRouterInstance ...
-func GetRouterInstance() *Router {
+func GetRouterInstance() contracts.Router {
 
 	splatParam, _ := regexp.Compile(`\*\w+`)
 	namedParam, _ := regexp.Compile(`(\(\?)?:\w+`)
@@ -30,19 +38,43 @@ func GetRouterInstance() *Router {
 		escapeRegExp:  escapeRegExp,
 		optionalParam: optionalParam,
 
-		partition: map[string]map[string]func(w http.ResponseWriter, r *http.Request){
-			"GET":    map[string]func(w http.ResponseWriter, r *http.Request){},
-			"PUT":    map[string]func(w http.ResponseWriter, r *http.Request){},
-			"POST":   map[string]func(w http.ResponseWriter, r *http.Request){},
-			"PATCH":  map[string]func(w http.ResponseWriter, r *http.Request){},
-			"DELETE": map[string]func(w http.ResponseWriter, r *http.Request){},
+		middleware: []func(http.Handler) http.Handler{},
+
+		balancer: &balancer{
+			partition: map[string]map[string]http.Handler{
+				"GET":    map[string]http.Handler{},
+				"PUT":    map[string]http.Handler{},
+				"POST":   map[string]http.Handler{},
+				"PATCH":  map[string]http.Handler{},
+				"DELETE": map[string]http.Handler{},
+			},
 		},
 	}
 
-	r.registerStaticRoute()
-	r.registerInitialRoute()
+	r.balancer.registerStaticRoute()
+	r.balancer.registerInitialRoute()
 
 	return r
+}
+
+func (r *Router) clone() *Router {
+	clone := *r
+	return &clone
+}
+
+// Group ...
+func (r *Router) Group(namespace string, callback func(r contracts.Router)) {
+
+	router := r.clone()
+	router.namespace = router.applyNamespace(namespace)
+
+	callback(router)
+}
+
+// AddMiddleware ...
+func (r *Router) AddMiddleware(middleware func(http.Handler) http.Handler) {
+
+	r.middleware = append(r.middleware, middleware)
 }
 
 // Get ...
@@ -77,7 +109,10 @@ func (r *Router) Delete(url string, f func(w http.ResponseWriter, r *http.Reques
 
 func (r *Router) append(method string, url string, f func(w http.ResponseWriter, r *http.Request)) {
 
-	r.partition[method][r.routeToRegExp(url)] = f
+	url = r.routeToRegExp(r.applyNamespace(url))
+	handler := r.applyMiddleware(http.HandlerFunc(f))
+
+	r.balancer.append(method, url, handler)
 }
 
 func (r *Router) routeToRegExp(route string) string {
@@ -92,17 +127,43 @@ func (r *Router) routeToRegExp(route string) string {
 	return fmt.Sprintf("^%s$", string(replRoute))
 }
 
-func (r *Router) registerStaticRoute() {
+func (r *Router) applyMiddleware(next http.Handler) http.Handler {
+
+	for i := len(r.middleware) - 1; i >= 0; i-- {
+		next = r.middleware[i](next)
+	}
+
+	return next
+}
+
+func (r *Router) applyNamespace(path string) string {
+
+	path = strings.Trim(path, "/")
+	namespace := strings.Trim(r.namespace, "/")
+
+	if len(namespace) > 0 {
+		namespace = "/" + namespace + "/"
+	}
+
+	return namespace + path + "/"
+}
+
+func (b *balancer) append(method string, url string, h http.Handler) {
+
+	b.partition[method][url] = h
+}
+
+func (b *balancer) registerStaticRoute() {
 
 	fs := http.FileServer(http.Dir("public"))
 	http.Handle("/public/", http.StripPrefix("/public/", fs))
 }
 
-func (r *Router) registerInitialRoute() {
+func (b *balancer) registerInitialRoute() {
 
 	http.HandleFunc("/", func(w http.ResponseWriter, req *http.Request) {
 
-		routes, ok := r.partition[req.Method]
+		routes, ok := b.partition[req.Method]
 		if !ok {
 			w.WriteHeader(405)
 			w.Write([]byte(fmt.Sprintf("Method: %s not allow", req.Method)))
@@ -114,7 +175,7 @@ func (r *Router) registerInitialRoute() {
 			if routeReg.MatchString(req.RequestURI) {
 				params := routeReg.FindStringSubmatch(req.RequestURI)[1:]
 				fmt.Println("PARAMS", params)
-				handler(w, req)
+				handler.ServeHTTP(w, req)
 				return
 			}
 		}
