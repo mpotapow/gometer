@@ -1,38 +1,27 @@
 package middleware
 
 import (
-	"gometer/modules/core"
+	gometerHttp "gometer/modules/http"
+	httpContracts "gometer/modules/http/contracts"
 	"gometer/modules/session/contracts"
+	"gometer/src/tools"
 	"net/http"
 )
 
 // StartSession ...
-func StartSession(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+func StartSession(next httpContracts.Handler) httpContracts.Handler {
+	return gometerHttp.HandlerFunc(func(w httpContracts.ResponseWriter, r *http.Request) {
 
-		manager := getSessionManager()
-		session := getSession(manager, r)
+		helper := tools.GetSessionInstance(r)
+		session := helper.GetStorage()
 		session.Start()
 
-		addCookieResponse(manager, session, w)
+		addCookieResponse(helper.GetManager(), session, w)
 
 		next.ServeHTTP(w, r)
 
 		session.Save()
 	})
-}
-
-func getSessionManager() contracts.Manager {
-	managerInst, _ := core.GetApplicationInstance().Get("session")
-	return managerInst.(contracts.Manager)
-}
-
-func getSession(manager contracts.Manager, r *http.Request) contracts.Session {
-	session := manager.GetDriver()
-	if cookie, err := r.Cookie(session.GetName()); err == nil {
-		session.SetID(cookie.Value)
-	}
-	return session
 }
 
 func addCookieResponse(manager contracts.Manager, session contracts.Session, w http.ResponseWriter) {

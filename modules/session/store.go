@@ -110,6 +110,8 @@ func (s *Store) Start() {
 	sessionData := s.handler.Read(s.GetID())
 	if sessionData == nil {
 		s.handler.Write(s.GetID(), map[string]interface{}{})
+	} else {
+		s.handler.Write(s.GetID(), sessionData)
 	}
 }
 

@@ -33,5 +33,6 @@ func registerModulesProvider(app contracts.Application) {
 
 func registerApplicationProvider(app contracts.Application) {
 
+	app.AddProvider(providers.GetAppServiceProvider())
 	app.AddProvider(providers.GetRouteServiceProvider())
 }

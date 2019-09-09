@@ -4,6 +4,7 @@ import (
 	"gometer/modules/core/contracts"
 	httpContracts "gometer/modules/http/contracts"
 	viewContracts "gometer/modules/view/contracts"
+	"gometer/src/controllers"
 	"gometer/src/middleware"
 	"net/http"
 )
@@ -29,14 +30,18 @@ func (p *RouteServiceProvider) Register(a contracts.Application) {
 
 	router.AddMiddleware(middleware.StartSession)
 
-	router.Get("/", func(w http.ResponseWriter, r *http.Request) {
+	router.Group("/api/v1", func(r httpContracts.Router) {
 
-		view.Render(w, "welcome", nil)
+		r.AddMiddleware(middleware.Authenticate)
 	})
 
-	router.Get("/test/:id/test", func(w http.ResponseWriter, r *http.Request) {
+	router.Group("/api/v1", func(r httpContracts.Router) {
 
-		w.Write([]byte("TEST!"))
+		r.Post("/login", controllers.AuthController)
+	})
+
+	router.Get("/login", func(w httpContracts.ResponseWriter, r *http.Request) {
+		view.Render(w, "main", nil)
 	})
 }
 

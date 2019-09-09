@@ -17,11 +17,18 @@ type Router struct {
 
 	namespace  string
 	balancer   *balancer
-	middleware []func(http.Handler) http.Handler
+	middleware []func(contracts.Handler) contracts.Handler
 }
 
 type balancer struct {
-	partition map[string]map[string]http.Handler
+	partition map[string]map[string]contracts.Handler
+}
+
+// HandlerFunc ...
+type HandlerFunc func(contracts.ResponseWriter, *http.Request)
+
+func (f HandlerFunc) ServeHTTP(w contracts.ResponseWriter, r *http.Request) {
+	f(w, r)
 }
 
 // GetRouterInstance ...
@@ -38,15 +45,15 @@ func GetRouterInstance() contracts.Router {
 		escapeRegExp:  escapeRegExp,
 		optionalParam: optionalParam,
 
-		middleware: []func(http.Handler) http.Handler{},
+		middleware: []func(contracts.Handler) contracts.Handler{},
 
 		balancer: &balancer{
-			partition: map[string]map[string]http.Handler{
-				"GET":    map[string]http.Handler{},
-				"PUT":    map[string]http.Handler{},
-				"POST":   map[string]http.Handler{},
-				"PATCH":  map[string]http.Handler{},
-				"DELETE": map[string]http.Handler{},
+			partition: map[string]map[string]contracts.Handler{
+				"GET":    map[string]contracts.Handler{},
+				"PUT":    map[string]contracts.Handler{},
+				"POST":   map[string]contracts.Handler{},
+				"PATCH":  map[string]contracts.Handler{},
+				"DELETE": map[string]contracts.Handler{},
 			},
 		},
 	}
@@ -72,45 +79,45 @@ func (r *Router) Group(namespace string, callback func(r contracts.Router)) {
 }
 
 // AddMiddleware ...
-func (r *Router) AddMiddleware(middleware func(http.Handler) http.Handler) {
+func (r *Router) AddMiddleware(middleware func(contracts.Handler) contracts.Handler) {
 
 	r.middleware = append(r.middleware, middleware)
 }
 
 // Get ...
-func (r *Router) Get(url string, f func(w http.ResponseWriter, r *http.Request)) {
+func (r *Router) Get(url string, f func(w contracts.ResponseWriter, r *http.Request)) {
 
 	r.append("GET", url, f)
 }
 
 // Post ...
-func (r *Router) Post(url string, f func(w http.ResponseWriter, r *http.Request)) {
+func (r *Router) Post(url string, f func(w contracts.ResponseWriter, r *http.Request)) {
 
 	r.append("POST", url, f)
 }
 
 // Patch ...
-func (r *Router) Patch(url string, f func(w http.ResponseWriter, r *http.Request)) {
+func (r *Router) Patch(url string, f func(w contracts.ResponseWriter, r *http.Request)) {
 
 	r.append("PATCH", url, f)
 }
 
 // Put ...
-func (r *Router) Put(url string, f func(w http.ResponseWriter, r *http.Request)) {
+func (r *Router) Put(url string, f func(w contracts.ResponseWriter, r *http.Request)) {
 
 	r.append("PUT", url, f)
 }
 
 // Delete ...
-func (r *Router) Delete(url string, f func(w http.ResponseWriter, r *http.Request)) {
+func (r *Router) Delete(url string, f func(w contracts.ResponseWriter, r *http.Request)) {
 
 	r.append("DELETE", url, f)
 }
 
-func (r *Router) append(method string, url string, f func(w http.ResponseWriter, r *http.Request)) {
+func (r *Router) append(method string, url string, f func(w contracts.ResponseWriter, r *http.Request)) {
 
 	url = r.routeToRegExp(r.applyNamespace(url))
-	handler := r.applyMiddleware(http.HandlerFunc(f))
+	handler := r.applyMiddleware(HandlerFunc(f))
 
 	r.balancer.append(method, url, handler)
 }
@@ -127,7 +134,7 @@ func (r *Router) routeToRegExp(route string) string {
 	return fmt.Sprintf("^%s$", string(replRoute))
 }
 
-func (r *Router) applyMiddleware(next http.Handler) http.Handler {
+func (r *Router) applyMiddleware(next contracts.Handler) contracts.Handler {
 
 	for i := len(r.middleware) - 1; i >= 0; i-- {
 		next = r.middleware[i](next)
@@ -141,14 +148,17 @@ func (r *Router) applyNamespace(path string) string {
 	path = strings.Trim(path, "/")
 	namespace := strings.Trim(r.namespace, "/")
 
-	if len(namespace) > 0 {
-		namespace = "/" + namespace + "/"
+	url := "/" + namespace + "/" + path
+	url = strings.Trim(url, "/")
+
+	if len(url) <= 0 {
+		return "/"
 	}
 
-	return namespace + path + "/"
+	return "/" + url + "/"
 }
 
-func (b *balancer) append(method string, url string, h http.Handler) {
+func (b *balancer) append(method string, url string, h contracts.Handler) {
 
 	b.partition[method][url] = h
 }
@@ -165,8 +175,7 @@ func (b *balancer) registerInitialRoute() {
 
 		routes, ok := b.partition[req.Method]
 		if !ok {
-			w.WriteHeader(405)
-			w.Write([]byte(fmt.Sprintf("Method: %s not allow", req.Method)))
+			http.Error(w, fmt.Sprintf("Method: %s not allow", req.Method), http.StatusMethodNotAllowed)
 			return
 		}
 
@@ -175,13 +184,11 @@ func (b *balancer) registerInitialRoute() {
 			if routeReg.MatchString(req.RequestURI) {
 				params := routeReg.FindStringSubmatch(req.RequestURI)[1:]
 				fmt.Println("PARAMS", params)
-				handler.ServeHTTP(w, req)
+				handler.ServeHTTP(NewResponse(w), req)
 				return
 			}
 		}
 
-		w.WriteHeader(http.StatusNotFound)
-		w.Write([]byte("404 Not Found \n"))
-		w.Write([]byte(fmt.Sprintf("Method: %s\nUri: %s", req.Method, req.RequestURI)))
+		http.NotFound(w, req)
 	})
 }

@@ -3,9 +3,13 @@ package core
 import (
 	"gometer/modules/core/contracts"
 	"os"
+	"sync"
 )
 
-var instance *Application
+var (
+	once     sync.Once
+	instance *Application
+)
 
 // Application ...
 type Application struct {
@@ -17,9 +21,8 @@ type Application struct {
 // GetApplicationInstance ...
 func GetApplicationInstance() contracts.Application {
 
-	if instance == nil {
+	once.Do(func() {
 		dir, _ := os.Getwd()
-
 		instance = &Application{
 			Storage: Storage{
 				values: map[string]interface{}{},
@@ -27,8 +30,7 @@ func GetApplicationInstance() contracts.Application {
 			rootPath:  dir,
 			providers: []contracts.ServiceProvider{},
 		}
-	}
-
+	})
 	return instance
 }
 
