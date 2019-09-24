@@ -10,6 +10,7 @@ import (
 
 // Router ...
 type Router struct {
+	lastSlash     *regexp.Regexp
 	namedParam    *regexp.Regexp
 	splatParam    *regexp.Regexp
 	escapeRegExp  *regexp.Regexp
@@ -34,12 +35,14 @@ func (f HandlerFunc) ServeHTTP(w contracts.ResponseWriter, r *http.Request) {
 // GetRouterInstance ...
 func GetRouterInstance() contracts.Router {
 
+	lastSlash, _ := regexp.Compile(`\/$`)
 	splatParam, _ := regexp.Compile(`\*\w+`)
 	namedParam, _ := regexp.Compile(`(\(\?)?:\w+`)
 	optionalParam, _ := regexp.Compile(`\((.*?)\)`)
 	escapeRegExp, _ := regexp.Compile(`[\-{}\[\]+?.,\\\^$|#\s]`)
 
 	r := &Router{
+		lastSlash:     lastSlash,
 		namedParam:    namedParam,
 		splatParam:    splatParam,
 		escapeRegExp:  escapeRegExp,
@@ -129,6 +132,7 @@ func (r *Router) routeToRegExp(route string) string {
 	replRoute = r.namedParam.ReplaceAllFunc(replRoute, func(data []byte) []byte {
 		return []byte(`([^\/]+)`)
 	})
+	replRoute = r.lastSlash.ReplaceAll(replRoute, []byte("[/]?"))
 	replRoute = r.splatParam.ReplaceAll(replRoute, []byte("(.*?)"))
 
 	return fmt.Sprintf("^%s$", string(replRoute))
@@ -181,8 +185,8 @@ func (b *balancer) registerInitialRoute() {
 
 		for route, handler := range routes {
 			routeReg, _ := regexp.Compile(route)
-			if routeReg.MatchString(req.RequestURI) {
-				params := routeReg.FindStringSubmatch(req.RequestURI)[1:]
+			if routeReg.MatchString(req.URL.Path) {
+				params := routeReg.FindStringSubmatch(req.URL.Path)[1:]
 				fmt.Println("PARAMS", params)
 				handler.ServeHTTP(NewResponse(w), req)
 				return
