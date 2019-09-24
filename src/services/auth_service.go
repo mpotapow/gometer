@@ -10,6 +10,7 @@ import (
 
 // AuthService ...
 type AuthService struct {
+	storage contracts.UserRepository
 }
 
 // ErrPasswordHash ...
@@ -17,16 +18,18 @@ var ErrPasswordHash = errors.New("auth: wrong password")
 
 // NewAuthService ...
 func NewAuthService() contracts.AuthService {
-	return &AuthService{}
+
+	userRepository, _ := core.GetApplicationInstance().Get("user-repository")
+
+	return &AuthService{
+		storage: userRepository.(contracts.UserRepository),
+	}
 }
 
 // Authorize ...
 func (a *AuthService) Authorize(login string, password string) (*models.User, error) {
 
-	userRepository, _ := core.GetApplicationInstance().Get("user-repository")
-	repository := userRepository.(contracts.UserRepository)
-
-	user, err := repository.FindByLogin(login)
+	user, err := a.storage.FindByLogin(login)
 	if err != nil {
 		return user, err
 	}

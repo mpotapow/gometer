@@ -16,6 +16,9 @@ func Authenticate(next contracts.Handler) contracts.Handler {
 
 		if val := session.Get("user_id"); val == nil {
 			http.Redirect(w, r, "/login/", http.StatusMovedPermanently)
+			return
 		}
+
+		next.ServeHTTP(w, r)
 	})
 }

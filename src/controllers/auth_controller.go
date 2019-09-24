@@ -6,6 +6,7 @@ import (
 	"gometer/src/contracts"
 	"gometer/src/requests"
 	"gometer/src/responses"
+	"gometer/src/tools"
 	"net/http"
 )
 
@@ -13,13 +14,13 @@ import (
 func AuthController(w httpContracts.ResponseWriter, r *http.Request) {
 
 	loginRequest := requests.LoginRequest{}
-	err := loginRequest.ParseJson(r, &loginRequest)
-	if err != nil {
-		w.ToJson(responses.NewMainUnprocessableResponse("Некорректный запрос"))
+
+	if err := loginRequest.ParseJson(r, &loginRequest); err != nil {
+		w.ToJson(responses.NewMainUnprocessableResponse("Invalid request"))
 		return
 	}
-	if len(loginRequest.Login) <= 0 || len(loginRequest.Password) <= 0 {
-		w.ToJson(responses.NewMainUnprocessableResponse("Некорректный запрос"))
+	if err := loginRequest.Validate(); err != nil {
+		w.ToJson(responses.NewMainUnprocessableResponse(err.Error()))
 		return
 	}
 
@@ -28,9 +29,12 @@ func AuthController(w httpContracts.ResponseWriter, r *http.Request) {
 
 	user, err := service.Authorize(loginRequest.Login, loginRequest.Password)
 	if err != nil {
-		w.ToJson(responses.NewMainUnprocessableResponse("Неверный логин или пароль"))
+		w.ToJson(responses.NewMainUnprocessableResponse("Wrong login or password"))
 		return
 	}
+
+	session := tools.GetSessionInstance(r)
+	session.GetStorage().Set("user_id", user.ID)
 
 	w.ToJson(responses.NewAuthReponse(user.ID))
 }

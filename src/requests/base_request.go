@@ -19,3 +19,8 @@ func (b *baseRequest) ParseJson(req *http.Request, container contracts.Request) 
 	}
 	return nil
 }
+
+// Validate ...
+func (b *baseRequest) Validate() error {
+	return nil
+}
